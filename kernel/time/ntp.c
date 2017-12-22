@@ -515,7 +515,7 @@ static void sync_cmos_clock(struct work_struct *work)
 		next.tv_nsec -= NSEC_PER_SEC;
 	}
 	queue_delayed_work(system_power_efficient_wq,
-			   &sync_cmos_work, timespec_to_jiffies(&next));
+	&sync_cmos_work, timespec_to_jiffies(&next));
 }
 
 void ntp_notify_cmos_timer(void)
@@ -631,6 +631,17 @@ int ntp_validate_timex(struct timex *txc)
 
 	if ((txc->modes & ADJ_SETOFFSET) && (!capable(CAP_SYS_TIME)))
 		return -EPERM;
+
+	/*
+	 * Check for potential multiplication overflows that can
+	 * only happen on 64-bit systems:
+	 */
+	if ((txc->modes & ADJ_FREQUENCY) && (BITS_PER_LONG == 64)) {
+		if (LLONG_MIN / PPM_SCALE > txc->freq)
+			return -EINVAL;
+		if (LLONG_MAX / PPM_SCALE < txc->freq)
+			return -EINVAL;
+	}
 
 	return 0;
 }
